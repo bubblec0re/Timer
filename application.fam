@@ -1,0 +1,8 @@
+App(
+    appid="timer",
+    name="Timer",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="timer_app",
+    fap_icon="timer.png",
+    fap_category="Misc",
+)
