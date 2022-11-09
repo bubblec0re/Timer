@@ -19,7 +19,6 @@ typedef struct {
 typedef struct {
     EventType type;
     InputEvent input;
-    bool halftick;
 } TimerEvent;
 
 const NotificationSequence sequence_alarm = {
@@ -63,7 +62,7 @@ void viewport_draw_callback(Canvas* canvas, void* ctx) {
 void timer_tick(FuriMessageQueue* event_queue) {
     furi_assert(event_queue);
     FuriMessageQueue* queue = event_queue;
-    TimerEvent timer_event = {.type = EventTypeTick, .halftick = true};
+    TimerEvent timer_event = {.type = EventTypeTick};
     furi_message_queue_put(queue, &timer_event, FuriWaitForever);
 }
 
