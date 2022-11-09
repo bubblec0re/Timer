@@ -3,13 +3,8 @@
 #include <input/input.h>
 #include <notification/notification_messages.h>
 
-// Custom types
 // Event types: timer and input
 typedef enum { EventTypeTick, EventTypeInput } EventType;
-typedef struct {
-    EventType type;
-    InputEvent input;
-} TimerEvent;
 // Timer status
 typedef enum { TimerTicking, TimerStopped, TimerAlarm } TimerStatus;
 // What part of time we're editing
@@ -20,6 +15,11 @@ typedef struct {
     int minutes;
     int seconds;
 } Time;
+// Event types we use
+typedef struct {
+    EventType type;
+    InputEvent input;
+} TimerEvent;
 
 const NotificationSequence sequence_alarm = {
     &message_red_255,
@@ -28,14 +28,14 @@ const NotificationSequence sequence_alarm = {
     NULL,
 };
 
-void vp_input(InputEvent* event, void* ctx) {
+void viewport_input_callback(InputEvent* event, void* ctx) {
     furi_assert(ctx);
     FuriMessageQueue* queue = ctx;
     TimerEvent timer_event = {.type = EventTypeInput, .input = *event};
     furi_message_queue_put(queue, &timer_event, FuriWaitForever);
 }
 
-void vp_draw(Canvas* canvas, void* ctx) {
+void viewport_draw_callback(Canvas* canvas, void* ctx) {
     furi_assert(ctx);
 
     Time* timeptr = ctx;
@@ -78,8 +78,8 @@ int32_t timer_app(void* p) {
 
     // GUI init
     ViewPort* vp = view_port_alloc();
-    view_port_draw_callback_set(vp, vp_draw, &time);
-    view_port_input_callback_set(vp, vp_input, queue);
+    view_port_draw_callback_set(vp, viewport_draw_callback, &time);
+    view_port_input_callback_set(vp, viewport_input_callback, queue);
     Gui* gui = furi_record_open(RECORD_GUI);
     gui_add_view_port(gui, vp, GuiLayerFullscreen);
 
