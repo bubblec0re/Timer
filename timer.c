@@ -6,9 +6,9 @@
 // Event types: timer and input
 typedef enum { EventTypeTick, EventTypeInput } EventType;
 // Timer status
-typedef enum { TimerTicking, TimerStopped, TimerAlarm } TimerStatus;
+typedef enum { TimerTicking, TimerStopped, TimerAlarm, TimerEditing } TimerStatus;
 // What part of time we're editing
-typedef enum { Hours, Minutes, Seconds } TimerEditing;
+typedef enum { Hours, Minutes, Seconds } TimeEditing;
 // Time for displaying
 typedef struct {
     int hours;
@@ -19,14 +19,19 @@ typedef struct {
 typedef struct {
     EventType type;
     InputEvent input;
+    bool halftick;
 } TimerEvent;
 
 const NotificationSequence sequence_alarm = {
     &message_red_255,
     &message_vibro_on,
+    &message_note_f4,
     &message_delay_500,
     NULL,
 };
+
+bool cursor_visible = 0;
+TimeEditing timeediting = Minutes;
 
 void viewport_input_callback(InputEvent* event, void* ctx) {
     furi_assert(ctx);
@@ -38,21 +43,27 @@ void viewport_input_callback(InputEvent* event, void* ctx) {
 void viewport_draw_callback(Canvas* canvas, void* ctx) {
     furi_assert(ctx);
 
-    Time* timeptr = ctx;
-
     canvas_clear(canvas);
     canvas_set_font(canvas, FontBigNumbers);
+
+    Time* timeptr = ctx;
+    uint8_t x_pos = 20;
+    uint8_t y_pos = 40;
+    uint8_t width = canvas_string_width(canvas, "00");
 
     char seconds_str[10];
     snprintf(
         seconds_str, 10, "%02d:%02d:%02d", timeptr->hours, timeptr->minutes, timeptr->seconds);
-    canvas_draw_str(canvas, 20, 40, seconds_str);
+    canvas_draw_str(canvas, x_pos, y_pos, seconds_str);
+    if(cursor_visible) {
+        canvas_draw_box(canvas, x_pos + timeediting * 36, y_pos + 2, width, 2);
+    }
 }
 
 void timer_tick(FuriMessageQueue* event_queue) {
     furi_assert(event_queue);
     FuriMessageQueue* queue = event_queue;
-    TimerEvent timer_event = {.type = EventTypeTick};
+    TimerEvent timer_event = {.type = EventTypeTick, .halftick = true};
     furi_message_queue_put(queue, &timer_event, FuriWaitForever);
 }
 
@@ -65,15 +76,19 @@ void update_time(Time* timeptr, int seconds_total) {
 int32_t timer_app(void* p) {
     UNUSED(p);
 
-    // TimerStatus timer_status = TimerStopped;
     TimerStatus timer_status = TimerStopped;
+    // TimerStatus timer_status = TimerTicking;
 
     // Variables for use
     TimerEvent event;
     FuriMessageQueue* queue = furi_message_queue_alloc(8, sizeof(TimerEvent));
     Time time = {.hours = 0, .minutes = 1, .seconds = 0};
+    // Time time = {.hours = 0, .minutes = 0, .seconds = 3};
     int seconds_total;
     seconds_total = time.hours * 60 * 60 + time.minutes * 60 + time.seconds;
+    uint16_t edit_multiplier = 60;
+
+    // Update the displayed time on startup
     update_time(&time, seconds_total);
 
     // GUI init
@@ -87,7 +102,7 @@ int32_t timer_app(void* p) {
     FuriTimer* timer = furi_timer_alloc(timer_tick, FuriTimerTypePeriodic, queue);
     furi_timer_start(timer, 1000);
 
-    // Notification for the alarm when we reach 00:00:00
+    // Notifications for the alarm when we reach 00:00:00
     NotificationApp* notifications = furi_record_open(RECORD_NOTIFICATION);
 
     // Main loop
@@ -98,46 +113,85 @@ int32_t timer_app(void* p) {
             InputKey key = event.input.key;
             InputType input_type = event.input.type;
 
-            // Turn off the alarm
+            // Turn the alarm off on any key pressed
             if(timer_status == TimerAlarm) {
                 timer_status = TimerStopped;
             }
 
             if(key == InputKeyBack) {
+                timer_status = TimerStopped;
                 break;
-            } else if((key == InputKeyOk) & (input_type == InputTypeShort)) {
+            }
+
+            if((key == InputKeyOk) & (input_type == InputTypeShort)) {
                 if((timer_status == TimerStopped) & (seconds_total > 0)) {
                     timer_status = TimerTicking;
-                } else {
+                } else if(timer_status == TimerTicking) {
                     timer_status = TimerStopped;
+                } else if(timer_status == TimerEditing) {
+                    timer_status = TimerStopped;
+                    cursor_visible = 0;
                 }
-            } else if(key == InputKeyUp) {
-                if(input_type == InputTypeRepeat) {
-                    seconds_total = seconds_total + 60;
-                } else if(input_type == InputTypeShort) {
-                    seconds_total++;
+            } else if((key == InputKeyOk) & (input_type == InputTypeLong)) {
+                if(timer_status == TimerEditing) {
+                    timer_status = TimerStopped;
+                    cursor_visible = 0;
+                } else {
+                    timer_status = TimerEditing;
                 }
-            } else if(key == InputKeyDown) {
-                if(input_type == InputTypeRepeat) {
-                    if(seconds_total > 60) {
-                        seconds_total = seconds_total - 60;
-                    } else {
-                        if(seconds_total > 0) {
-                            seconds_total--;
-                        }
+            } else if((key == InputKeyUp) & (timer_status == TimerEditing)) {
+                seconds_total = seconds_total + edit_multiplier;
+
+            } else if((key == InputKeyDown) & (timer_status == TimerEditing)) {
+                seconds_total = seconds_total - edit_multiplier;
+                if(seconds_total < 0) {
+                    seconds_total = 0;
+                }
+
+            } else if((key == InputKeyLeft) & (input_type == InputTypeShort)) {
+                // move the cursor left
+                if((timeediting > 0) & (timer_status == TimerEditing)) {
+                    timeediting--;
+
+                    switch(timeediting) {
+                    case Hours:
+                        edit_multiplier = 3600;
+                        break;
+                    case Minutes:
+                        edit_multiplier = 60;
+                        break;
+                    case Seconds:
+                        edit_multiplier = 1;
+                        break;
+                    default:
+                        break;
                     }
-                } else if(input_type == InputTypeShort) {
-                    if(seconds_total > 0) {
-                        seconds_total--;
+                }
+            } else if((key == InputKeyRight) & (input_type == InputTypeShort)) {
+                if((timeediting < 2) & (timer_status == TimerEditing)) {
+                    timeediting++;
+                    switch(timeediting) {
+                    case Hours:
+                        edit_multiplier = 3600;
+                        break;
+                    case Minutes:
+                        edit_multiplier = 60;
+                        break;
+                    case Seconds:
+                        edit_multiplier = 1;
+                        break;
+                    default:
+                        break;
                     }
                 }
             }
-
         } else if(event.type == EventTypeTick) {
             if(timer_status == TimerTicking) {
                 seconds_total--;
             } else if(timer_status == TimerAlarm) {
                 notification_message(notifications, &sequence_alarm);
+            } else if(timer_status == TimerEditing) {
+                cursor_visible = !cursor_visible;
             }
 
             if((seconds_total <= 0) & (timer_status == TimerTicking)) {
