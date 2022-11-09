@@ -57,11 +57,9 @@ void timer_tick(FuriMessageQueue* event_queue) {
 }
 
 void update_time(Time* timeptr, int seconds_total) {
-    Time* ptr = timeptr;
-    Time time = *ptr;
-    time.hours = seconds_total / (60 * 60);
-    time.minutes = (seconds_total - time.hours * 60 * 60) / 60;
-    time.seconds = (seconds_total - time.hours * 60 * 60 - time.minutes * 60);
+    timeptr->hours = seconds_total / (60 * 60);
+    timeptr->minutes = (seconds_total - timeptr->hours * 60 * 60) / 60;
+    timeptr->seconds = (seconds_total - timeptr->hours * 60 * 60 - timeptr->minutes * 60);
 }
 
 int32_t timer_app(void* p) {
@@ -94,6 +92,7 @@ int32_t timer_app(void* p) {
 
     // Main loop
     while(1) {
+        update_time(&time, seconds_total);
         furi_check(furi_message_queue_get(queue, &event, FuriWaitForever) == FuriStatusOk);
         if(event.type == EventTypeInput) {
             InputKey key = event.input.key;
@@ -135,7 +134,6 @@ int32_t timer_app(void* p) {
             }
 
         } else if(event.type == EventTypeTick) {
-            update_time(&time, seconds_total);
             if(timer_status == TimerTicking) {
                 seconds_total--;
             } else if(timer_status == TimerAlarm) {
