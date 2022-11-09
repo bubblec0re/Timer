@@ -39,13 +39,13 @@ void vp_draw(Canvas* canvas, void* ctx) {
     furi_assert(ctx);
 
     Time* timeptr = ctx;
-    Time time = *timeptr;
 
     canvas_clear(canvas);
     canvas_set_font(canvas, FontBigNumbers);
 
     char seconds_str[10];
-    snprintf(seconds_str, 10, "%02d:%02d:%02d", time.hours, time.minutes, time.seconds);
+    snprintf(
+        seconds_str, 10, "%02d:%02d:%02d", timeptr->hours, timeptr->minutes, timeptr->seconds);
     canvas_draw_str(canvas, 20, 40, seconds_str);
 }
 
@@ -66,7 +66,7 @@ int32_t timer_app(void* p) {
     UNUSED(p);
 
     // TimerStatus timer_status = TimerStopped;
-    TimerStatus timer_status = TimerTicking;
+    TimerStatus timer_status = TimerStopped;
 
     // Variables for use
     TimerEvent event;
