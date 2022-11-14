@@ -72,6 +72,10 @@ void update_time(Time* timeptr, int seconds_total) {
     timeptr->seconds = (seconds_total - timeptr->hours * 60 * 60 - timeptr->minutes * 60);
 }
 
+bool short_or_repeated(InputType input_type) {
+    return (input_type == InputTypeShort) | (input_type == InputTypeRepeat);
+}
+
 int32_t timer_app(void* p) {
     UNUSED(p);
 
@@ -138,15 +142,18 @@ int32_t timer_app(void* p) {
                 } else {
                     timer_status = TimerEditing;
                 }
-            } else if((key == InputKeyUp) & (timer_status == TimerEditing)) {
+            } else if(
+                (key == InputKeyUp) & (timer_status == TimerEditing) &
+                short_or_repeated(input_type)) {
                 seconds_total = seconds_total + edit_multiplier;
 
-            } else if((key == InputKeyDown) & (timer_status == TimerEditing)) {
+            } else if(
+                (key == InputKeyDown) & (timer_status == TimerEditing) &
+                short_or_repeated(input_type)) {
                 seconds_total = seconds_total - edit_multiplier;
                 if(seconds_total < 0) {
                     seconds_total = 0;
                 }
-
             } else if((key == InputKeyLeft) & (input_type == InputTypeShort)) {
                 // move the cursor left
                 if((timeediting > 0) & (timer_status == TimerEditing)) {
